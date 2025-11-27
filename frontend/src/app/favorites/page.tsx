@@ -1,37 +1,55 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useCallback } from "react";
 import MovieCard from "@/components/MovieCard";
 import Pagination from "@/components/pagination";
 import { Button } from "@/components/ui/button";
 import { useAddToFavorites, useFavorites, useRemoveFromFavorites } from "@/hooks/useMovies";
+import { useDebouncedCallback } from "@/hooks/useDebouncedCallback";
+import { useErrorToast } from "@/hooks/useErrorToast";
 import { Movie } from "@/types/movie";
 import Link from "next/link";
+import ErrorToast from "@/components/ErrorToast";
 
 const Favorites = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const { data: favorites, isLoading, error } = useFavorites(currentPage);
+  const { errors, showError, removeError } = useErrorToast();
   
-  const addToFavorites = useAddToFavorites();
-  const removeFromFavorites = useRemoveFromFavorites();
+  const addToFavorites = useAddToFavorites((errorMessage) => showError(errorMessage));
+  const removeFromFavorites = useRemoveFromFavorites((errorMessage) => showError(errorMessage));
 
-  const handleToggleFavorite = async (movie: Movie) => {
-    if (addToFavorites.isPending || removeFromFavorites.isPending) {
-      return;
-    }
-
-    try {
-      await removeFromFavorites.mutateAsync(movie.imdbID);
-      
-      if (favorites?.data.favorites.length === 1 && currentPage > 1) {
-        setCurrentPage(currentPage - 1);
+  // Debounced favorite removal to prevent race conditions
+  const removeFavoriteAction = useCallback(
+    async (movie: Movie) => {
+      if (addToFavorites.isPending || removeFromFavorites.isPending) {
+        return;
       }
-    } catch (error) {
-      console.error('Failed to remove favorite:', error);
-    }
-  };
 
-  const handlePageChange = (page: number) => {
+      try {
+        await removeFromFavorites.mutateAsync(movie.imdbID);
+        
+        if (favorites?.data.favorites.length === 1 && currentPage > 1) {
+          setCurrentPage(currentPage - 1);
+        }
+      } catch (error) {
+        // Error is already handled by the onError callback in useMovies
+        console.error('Failed to remove favorite:', error);
+      }
+    },
+    [addToFavorites, removeFromFavorites, favorites?.data.favorites.length, currentPage],
+  );
+
+  const debouncedRemoveFavorite = useDebouncedCallback(removeFavoriteAction, 300);
+
+  const handleToggleFavorite = useCallback(
+    (movie: Movie) => {
+      debouncedRemoveFavorite(movie);
+    },
+    [debouncedRemoveFavorite],
+  );
+
+  const handlePageChange = useCallback((page: number) => {
     const totalPages = favorites?.data.totalPages || 1;
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
@@ -39,7 +57,7 @@ const Favorites = () => {
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
     }
-  };
+  }, [favorites?.data.totalPages]);
   
   const totalResults = favorites?.data.totalResults 
     ? parseInt(favorites.data.totalResults, 10)
@@ -66,7 +84,13 @@ const Favorites = () => {
         <div className="container mx-auto px-4 py-8">
           <div className="text-center py-12">
             <p className="text-xl text-red-500 mb-2">Error loading favorites</p>
-            <p className="text-muted-foreground">{error.message}</p>
+            <p className="text-muted-foreground">
+              {error.message.includes('Network error')
+                ? 'Unable to connect to the server. Please check your internet connection.'
+                : error.message.includes('Failed to fetch')
+                ? 'Unable to connect to the server. Please check your internet connection.'
+                : error.message}
+            </p>
           </div>
         </div>
       </div>
@@ -122,6 +146,15 @@ const Favorites = () => {
             )}
           </>
         )}
+
+        {/* Error Toasts */}
+        {errors.map((error) => (
+          <ErrorToast
+            key={error.id}
+            message={error.message}
+            onClose={() => removeError(error.id)}
+          />
+        ))}
       </div>
     </div>
   );

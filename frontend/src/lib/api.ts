@@ -43,9 +43,9 @@ export const movieApi = {
         throw error;
       }
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error: Unable to connect to server', 0);
+        throw new ApiError('Network error: Unable to connect to server. Please check your internet connection.', 0);
       }
-      throw new ApiError('An unexpected error occurred while searching movies');
+      throw new ApiError('Unable to search for movies. Please try again later.');
     }
   },
 
@@ -83,9 +83,9 @@ export const movieApi = {
         throw error;
       }
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error: Unable to connect to server', 0);
+        throw new ApiError('Network error: Unable to connect to server. Please check your internet connection.', 0);
       }
-      throw new ApiError('An unexpected error occurred while fetching favorites');
+      throw new ApiError('Unable to load favorites. Please try again later.');
     }
   },
 
@@ -116,9 +116,9 @@ export const movieApi = {
         throw error;
       }
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error: Unable to connect to server', 0);
+        throw new ApiError('Network error: Unable to connect to server. Please check your internet connection.', 0);
       }
-      throw new ApiError('An unexpected error occurred while adding to favorites');
+      throw new ApiError('Unable to add movie to favorites. Please try again.');
     }
   },
 
@@ -145,9 +145,9 @@ export const movieApi = {
         throw error;
       }
       if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        throw new ApiError('Network error: Unable to connect to server', 0);
+        throw new ApiError('Network error: Unable to connect to server. Please check your internet connection.', 0);
       }
-      throw new ApiError('An unexpected error occurred while removing from favorites');
+      throw new ApiError('Unable to remove movie from favorites. Please try again.');
     }
   },
 };

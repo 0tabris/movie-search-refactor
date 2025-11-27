@@ -1,20 +1,24 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useSearchMovies, useAddToFavorites, useRemoveFromFavorites } from '@/hooks/useMovies';
+import { useDebouncedCallback } from '@/hooks/useDebouncedCallback';
+import { useErrorToast } from '@/hooks/useErrorToast';
 import { Movie } from '@/types/movie';
 import SearchBar from '@/components/searchBar';
 import MovieCard from '@/components/MovieCard';
 import Pagination from '@/components/pagination';
+import ErrorToast from '@/components/ErrorToast';
 
 export default function SearchPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchEnabled, setSearchEnabled] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const { errors, showError, removeError } = useErrorToast();
 
   const { data: searchResults, isLoading, error } = useSearchMovies(searchQuery, currentPage, searchEnabled);
-  const addToFavorites = useAddToFavorites();
-  const removeFromFavorites = useRemoveFromFavorites();
+  const addToFavorites = useAddToFavorites((errorMessage) => showError(errorMessage));
+  const removeFromFavorites = useRemoveFromFavorites((errorMessage) => showError(errorMessage));
 
   const totalPages = useMemo(() => {
     if (!searchResults?.data.totalResults) return 0;
@@ -22,37 +26,55 @@ export default function SearchPage() {
     return Math.ceil(total / 10);
   }, [searchResults?.data.totalResults]);
 
-  const handleSearch = (query: string) => {
-    if (!query || query.trim().length === 0) return;
+  const handleSearch = useCallback((query: string) => {
+    if (!query || query.trim().length === 0) {
+      setSearchEnabled(false);
+      setSearchQuery('');
+      return;
+    }
     setSearchQuery(query.trim());
     setSearchEnabled(true);
     setCurrentPage(1);
-  };
+  }, []);
 
-  const handleToggleFavorite = async (movie: Movie) => {
-    if (addToFavorites.isPending || removeFromFavorites.isPending) {
-      return;
-    }
-
-    try {
-      if (movie.isFavorite) {
-        await removeFromFavorites.mutateAsync(movie.imdbID);
-      } else {
-        await addToFavorites.mutateAsync(movie);
+  // Debounced favorite toggle to prevent race conditions
+  const toggleFavoriteAction = useCallback(
+    async (movie: Movie) => {
+      if (addToFavorites.isPending || removeFromFavorites.isPending) {
+        return;
       }
-    } catch (error) {
-      console.error('Failed to toggle favorite:', error);
-    }
-  };
 
-  const handlePageChange = (page: number) => {
+      try {
+        if (movie.isFavorite) {
+          await removeFromFavorites.mutateAsync(movie.imdbID);
+        } else {
+          await addToFavorites.mutateAsync(movie);
+        }
+      } catch (error) {
+        // Error is already handled by the onError callback in useMovies
+        console.error('Failed to toggle favorite:', error);
+      }
+    },
+    [addToFavorites, removeFromFavorites],
+  );
+
+  const debouncedToggleFavorite = useDebouncedCallback(toggleFavoriteAction, 300);
+
+  const handleToggleFavorite = useCallback(
+    (movie: Movie) => {
+      debouncedToggleFavorite(movie);
+    },
+    [debouncedToggleFavorite],
+  );
+
+  const handlePageChange = useCallback((page: number) => {
     if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
       if (typeof window !== 'undefined') {
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
     }
-  };
+  }, [totalPages]);
 
   const isMutating = addToFavorites.isPending || removeFromFavorites.isPending;
 
@@ -78,9 +100,24 @@ export default function SearchPage() {
         {error && (
           <div className="text-center py-12">
             <p className="text-xl text-red-500 mb-2">Error loading movies</p>
-            <p className="text-muted-foreground">{error.message}</p>
+            <p className="text-muted-foreground">
+              {error.message.includes('Network error')
+                ? 'Unable to connect to the server. Please check your internet connection.'
+                : error.message.includes('Failed to fetch')
+                ? 'Unable to connect to the server. Please check your internet connection.'
+                : error.message}
+            </p>
           </div>
         )}
+
+        {/* Error Toasts */}
+        {errors.map((error) => (
+          <ErrorToast
+            key={error.id}
+            message={error.message}
+            onClose={() => removeError(error.id)}
+          />
+        ))}
 
         {!isLoading && !error && searchResults?.data.movies.length === 0 && !searchQuery && (
           <div className="text-center py-12">

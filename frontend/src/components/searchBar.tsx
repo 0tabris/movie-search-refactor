@@ -1,12 +1,25 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useDebounce } from "@/hooks/useDebounce";
 import { Input } from "./ui/input";
 
 interface SearchBarProps {
   onSearch: (query: string) => void;
+  debounceMs?: number;
 }
 
-const SearchBar = ({ onSearch }: SearchBarProps) => {
+const SearchBar = ({ onSearch, debounceMs = 500 }: SearchBarProps) => {
   const [query, setQuery] = useState("");
+  const debouncedQuery = useDebounce(query, debounceMs);
+
+  // Trigger search when debounced query changes
+  useEffect(() => {
+    if (debouncedQuery.trim()) {
+      onSearch(debouncedQuery);
+    } else if (debouncedQuery === '') {
+      // Clear search when query is empty
+      onSearch('');
+    }
+  }, [debouncedQuery]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

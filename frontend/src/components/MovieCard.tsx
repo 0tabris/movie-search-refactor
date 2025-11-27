@@ -1,4 +1,4 @@
-import { useState, memo } from "react";
+import { useState, memo, useCallback } from "react";
 import { Movie } from "@/types/movie";
 
 interface MovieCardProps {
@@ -7,6 +7,28 @@ interface MovieCardProps {
   onToggleFavorite: (movie: Movie) => void;
   disabled?: boolean;
 }
+
+// Custom comparison function to prevent unnecessary re-renders
+const arePropsEqual = (
+  prevProps: MovieCardProps,
+  nextProps: MovieCardProps,
+): boolean => {
+  // Compare movie by imdbID and key properties
+  const movieEqual =
+    prevProps.movie.imdbID === nextProps.movie.imdbID &&
+    prevProps.movie.title === nextProps.movie.title &&
+    prevProps.movie.year === nextProps.movie.year &&
+    prevProps.movie.poster === nextProps.movie.poster;
+
+  // Compare other props
+  const otherPropsEqual =
+    prevProps.isFavorite === nextProps.isFavorite &&
+    prevProps.disabled === nextProps.disabled;
+
+  // onToggleFavorite is a function, so we can't compare it directly
+  // But if movie and other props are equal, we assume the function is stable
+  return movieEqual && otherPropsEqual;
+};
 
 const MovieCard = memo(({ movie, isFavorite, onToggleFavorite, disabled = false }: MovieCardProps) => {
   const [imageError, setImageError] = useState(false);
@@ -21,11 +43,11 @@ const MovieCard = memo(({ movie, isFavorite, onToggleFavorite, disabled = false 
     setImageLoading(false);
   };
 
-  const handleToggle = () => {
+  const handleToggle = useCallback(() => {
     if (!disabled) {
       onToggleFavorite(movie);
     }
-  };
+  }, [disabled, onToggleFavorite, movie]);
 
   const hasValidPoster = movie.poster && movie.poster !== "N/A" && movie.poster.trim() !== "";
 
@@ -95,7 +117,7 @@ const MovieCard = memo(({ movie, isFavorite, onToggleFavorite, disabled = false 
       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-300 pointer-events-none" />
     </div>
   );
-});
+}, arePropsEqual);
 
 MovieCard.displayName = "MovieCard";
 

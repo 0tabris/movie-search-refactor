@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button } from "./ui/button";
 
 const ChevronLeft = ({ className }: { className?: string }) => (
@@ -18,7 +19,7 @@ interface PaginationProps {
   onPageChange: (page: number) => void;
 }
 
-const Pagination = ({ currentPage, totalPages, onPageChange }: PaginationProps) => {
+const Pagination = memo(({ currentPage, totalPages, onPageChange }: PaginationProps) => {
   const maxVisiblePages = 5;
   const halfVisible = Math.floor(maxVisiblePages / 2);
 
@@ -90,7 +91,9 @@ const Pagination = ({ currentPage, totalPages, onPageChange }: PaginationProps) 
       </Button>
     </div>
   );
-};
+});
+
+Pagination.displayName = "Pagination";
 
 export default Pagination;
 
