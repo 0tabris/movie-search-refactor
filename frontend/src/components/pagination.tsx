@@ -25,7 +25,6 @@ const Pagination = ({ currentPage, totalPages, onPageChange }: PaginationProps) 
   let startPage = Math.max(1, currentPage - halfVisible);
   const endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
 
-  // BUG: Complex logic, could be simplified
   if (endPage - startPage + 1 < maxVisiblePages) {
     startPage = Math.max(1, endPage - maxVisiblePages + 1);
   }
@@ -46,7 +45,6 @@ const Pagination = ({ currentPage, totalPages, onPageChange }: PaginationProps) 
         <ChevronLeft className="h-4 w-4" />
       </Button>
 
-      {/* BUG: Complex conditional rendering */}
       {startPage > 1 && (
         <>
           <Button

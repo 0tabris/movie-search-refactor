@@ -3,7 +3,6 @@
 import { useState } from "react";
 import MovieCard from "@/components/MovieCard";
 import Pagination from "@/components/pagination";
-
 import { Button } from "@/components/ui/button";
 import { useAddToFavorites, useFavorites, useRemoveFromFavorites } from "@/hooks/useMovies";
 import { Movie } from "@/types/movie";
@@ -11,47 +10,75 @@ import Link from "next/link";
 
 const Favorites = () => {
   const [currentPage, setCurrentPage] = useState(1);
-  // BUG: No error handling - will crash if API returns 404
-  const { data: favorites } = useFavorites(currentPage);
+  const { data: favorites, isLoading, error } = useFavorites(currentPage);
   
   const addToFavorites = useAddToFavorites();
   const removeFromFavorites = useRemoveFromFavorites();
-  
+
   const handleToggleFavorite = async (movie: Movie) => {
-    // BUG: Inefficient check - should use useMemo
-    // BUG: This check is redundant - all movies on favorites page are favorites
-    // BUG: Logic is inverted - if on favorites page, should always remove
-    const isFavorite = favorites?.data.favorites.some(fav => fav.imdbID === movie.imdbID) ?? false;
-    // BUG: No error handling
-    // BUG: If remove fails, movie stays in list but might be removed from backend
-    if (isFavorite) {
+    if (addToFavorites.isPending || removeFromFavorites.isPending) {
+      return;
+    }
+
+    try {
       await removeFromFavorites.mutateAsync(movie.imdbID);
-      // BUG: After removal, if on last page and it becomes empty, should navigate to previous page
-    } else {
-      await addToFavorites.mutateAsync(movie);
+      
+      if (favorites?.data.favorites.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      }
+    } catch (error) {
+      console.error('Failed to remove favorite:', error);
     }
   };
 
   const handlePageChange = (page: number) => {
-    // BUG: Type mismatch - totalResults might be number instead of string
-    if (page >= 1 && page <= (favorites?.data.totalPages || 1)) {
+    const totalPages = favorites?.data.totalPages || 1;
+    if (page >= 1 && page <= totalPages) {
       setCurrentPage(page);
-      window.scrollTo({ top: 0, behavior: "smooth" });
+      if (typeof window !== 'undefined') {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
     }
   };
   
-  // BUG: Will crash if favorites is undefined
-  // BUG: totalResults might be number (from backend bug) or string - toString() might fail
-  // BUG: If backend returns number, toString() works but parseInt is redundant
-  // BUG: If backend returns string, parseInt works but toString() is unnecessary
-  const totalResults = parseInt(favorites?.data.totalResults.toString() || '0');
-  
+  const totalResults = favorites?.data.totalResults 
+    ? parseInt(favorites.data.totalResults, 10)
+    : 0;
+
+  const isMutating = addToFavorites.isPending || removeFromFavorites.isPending;
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-hero">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <div className="inline-block h-12 w-12 animate-spin rounded-full border-4 border-primary border-r-transparent" />
+            <p className="mt-4 text-muted-foreground">Loading favorites...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-hero">
+        <div className="container mx-auto px-4 py-8">
+          <div className="text-center py-12">
+            <p className="text-xl text-red-500 mb-2">Error loading favorites</p>
+            <p className="text-muted-foreground">{error.message}</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-hero">
       <div className="container mx-auto px-4 py-8">
         <div className="mb-12">
           <div className="flex items-center justify-center gap-3 mb-6">
-            <h1 className="text-4xl md:text-5xl text-white font-bold  bg-clip-text ">
+            <h1 className="text-4xl md:text-5xl text-white font-bold bg-clip-text">
               My Favorites
             </h1>
           </div>
@@ -75,18 +102,17 @@ const Favorites = () => {
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {/* BUG: No loading state */}
-              {favorites?.data.favorites.map((movie) => (
+              {favorites?.data.favorites.map((movie: Movie) => (
                 <MovieCard
                   key={movie.imdbID}
                   movie={movie}
                   isFavorite={true}
                   onToggleFavorite={handleToggleFavorite}
+                  disabled={isMutating}
                 />
               ))}
             </div>
 
-            {/* BUG: Complex conditional */}
             {favorites?.data.totalPages && favorites.data.totalPages > 1 && (
               <Pagination
                 currentPage={currentPage}
@@ -102,4 +128,3 @@ const Favorites = () => {
 };
 
 export default Favorites;
-

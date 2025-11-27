@@ -1,74 +1,153 @@
 import { Movie, SearchMoviesResponse, FavoritesResponse } from '@/types/movie';
 
-// BUG: Hardcoded API URL, should use env var
-const API_BASE_URL = 'http://localhost:3001/movies';
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001/movies';
+
+class ApiError extends Error {
+  constructor(
+    message: string,
+    public status?: number,
+    public data?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiError';
+  }
+}
 
 export const movieApi = {
   searchMovies: async (query: string, page: number = 1): Promise<SearchMoviesResponse> => {
-    // BUG: No input validation
-    // BUG: No error handling for network errors
-    // BUG: Missing encodeURIComponent - will break with special characters
-    const response = await fetch(`${API_BASE_URL}/search?q=${query}&page=${page}`);
-
-    // BUG: Doesn't check response.ok before parsing
-    // BUG: If response is not OK, response.json() might fail or return error object
-    const data = await response.json();
-    
-    // BUG: Backend returns HttpException object when there's an error, not {error: ...}
-    // This check will never catch backend errors properly
-    if (data.error) {
-      throw new Error(data.error);
+    if (!query || typeof query !== 'string' || query.trim().length === 0) {
+      throw new ApiError('Search query is required');
     }
-    
-    // BUG: If backend returns error (HttpException object), it's returned as data
-    // No check for response.status or response.ok
-    return data;
+
+    if (!Number.isInteger(page) || page < 1) {
+      throw new ApiError('Page must be a positive integer');
+    }
+
+    try {
+      const encodedQuery = encodeURIComponent(query.trim());
+      const response = await fetch(`${API_BASE_URL}/search?q=${encodedQuery}&page=${page}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(
+          errorData.message || 'Failed to search movies',
+          response.status,
+          errorData,
+        );
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new ApiError('Network error: Unable to connect to server', 0);
+      }
+      throw new ApiError('An unexpected error occurred while searching movies');
+    }
   },
 
   getFavorites: async (page: number = 1): Promise<FavoritesResponse> => {
-    // BUG: No error handling
-    const response = await fetch(`${API_BASE_URL}/favorites/list?page=${page}`);
-    
-    // BUG: Doesn't handle 404 properly - will crash
-    if (!response.ok) {
-      throw new Error('Failed to get favorites');
+    if (!Number.isInteger(page) || page < 1) {
+      throw new ApiError('Page must be a positive integer');
     }
-    
-    return response.json();
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/favorites/list?page=${page}`);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        if (response.status === 404) {
+          return {
+            data: {
+              favorites: [],
+              count: 0,
+              totalResults: '0',
+              currentPage: page,
+              totalPages: 0,
+            },
+          };
+        }
+        throw new ApiError(
+          errorData.message || 'Failed to get favorites',
+          response.status,
+          errorData,
+        );
+      }
+
+      return response.json();
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new ApiError('Network error: Unable to connect to server', 0);
+      }
+      throw new ApiError('An unexpected error occurred while fetching favorites');
+    }
   },
 
   addToFavorites: async (movie: Movie): Promise<void> => {
-    // BUG: No validation that movie has required fields
-    const response = await fetch(`${API_BASE_URL}/favorites`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(movie),
-    });
-    
-    // BUG: Backend returns HttpException object (not thrown) when movie already exists
-    // This means response.status might be 200 but data contains error
-    // BUG: Doesn't check response.status properly - should check response.ok
-    if (response.status !== 200) {
-      const error = await response.json();
-      throw new Error(error.message || 'Failed to add movie to favorites');
+    if (!movie || !movie.imdbID) {
+      throw new ApiError('Invalid movie data');
     }
-    
-    // BUG: Even if status is 200, backend might return HttpException object in body
-    // Should check response body for error structure
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/favorites`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(movie),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(
+          errorData.message || 'Failed to add movie to favorites',
+          response.status,
+          errorData,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new ApiError('Network error: Unable to connect to server', 0);
+      }
+      throw new ApiError('An unexpected error occurred while adding to favorites');
+    }
   },
 
   removeFromFavorites: async (imdbID: string): Promise<void> => {
-    // BUG: No validation
-    const response = await fetch(`${API_BASE_URL}/favorites/${imdbID}`, {
-      method: 'DELETE',
-    });
-    
-    // BUG: Doesn't check response.ok
-    if (response.status !== 200) {
-      throw new Error('Failed to remove movie from favorites');
+    if (!imdbID || typeof imdbID !== 'string' || imdbID.trim().length === 0) {
+      throw new ApiError('Movie ID is required');
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/favorites/${encodeURIComponent(imdbID)}`, {
+        method: 'DELETE',
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new ApiError(
+          errorData.message || 'Failed to remove movie from favorites',
+          response.status,
+          errorData,
+        );
+      }
+    } catch (error) {
+      if (error instanceof ApiError) {
+        throw error;
+      }
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        throw new ApiError('Network error: Unable to connect to server', 0);
+      }
+      throw new ApiError('An unexpected error occurred while removing from favorites');
     }
   },
 };
-

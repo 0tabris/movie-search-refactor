@@ -10,8 +10,7 @@ const SearchBar = ({ onSearch }: SearchBarProps) => {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    // BUG: No validation, empty strings can be submitted
-    if (query) {
+    if (query.trim()) {
       onSearch(query);
     }
   };

@@ -1,4 +1,3 @@
-// BUG: Inconsistent type definitions, missing some fields
 export interface Movie {
   title: string;
   imdbID: string;
@@ -19,9 +18,8 @@ export interface FavoritesResponse {
   data: {
     favorites: Movie[];
     count: number;
-    totalResults: number; // BUG: Should be string to match API
+    totalResults: string;
     currentPage: number;
     totalPages: number;
   };
 }
-

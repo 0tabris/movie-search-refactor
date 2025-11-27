@@ -1,25 +1,23 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { movieApi } from '@/lib/api';
+import { SearchMoviesResponse, FavoritesResponse } from '@/types/movie';
 
-// BUG: Missing proper TypeScript types
 export const useSearchMovies = (query: string, page: number = 1, enabled: boolean = false) => {
-  return useQuery({
+  return useQuery<SearchMoviesResponse, Error>({
     queryKey: ['movies', 'search', query, page],
     queryFn: () => movieApi.searchMovies(query, page),
     enabled: enabled && query.length > 0,
-    // BUG: No error handling configuration
-    // BUG: No retry configuration
+    retry: 1,
+    staleTime: 60 * 1000,
   });
 };
 
 export const useFavorites = (page: number = 1) => {
-  return useQuery({
+  return useQuery<FavoritesResponse, Error>({
     queryKey: ['movies', 'favorites', page],
     queryFn: () => movieApi.getFavorites(page),
-    // BUG: No error handling - will crash on 404
-    // BUG: Should handle empty favorites gracefully
-    // BUG: No retry logic - if backend throws 404 for empty list, query fails permanently
-    // BUG: Query doesn't refetch when favorites are added/removed from other components
+    retry: 1,
+    staleTime: 30 * 1000,
   });
 };
 
@@ -29,13 +27,12 @@ export const useAddToFavorites = () => {
   return useMutation({
     mutationFn: movieApi.addToFavorites,
     onSuccess: () => {
-      // BUG: Inefficient - invalidating all queries
-      // BUG: Invalidates search queries too, causing unnecessary refetches
-      // BUG: Should only invalidate favorites list and current search results
-      queryClient.invalidateQueries({ queryKey: ['movies'] });
+      queryClient.invalidateQueries({ queryKey: ['movies', 'favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['movies', 'search'] });
     },
-    // BUG: No error handling
-    // BUG: If backend returns HttpException object (not thrown), mutation succeeds but UI doesn't update
+    onError: (error) => {
+      console.error('Failed to add to favorites:', error);
+    },
   });
 };
 
@@ -45,10 +42,11 @@ export const useRemoveFromFavorites = () => {
   return useMutation({
     mutationFn: movieApi.removeFromFavorites,
     onSuccess: () => {
-      // BUG: Inefficient - invalidating all queries
-      queryClient.invalidateQueries({ queryKey: ['movies'] });
+      queryClient.invalidateQueries({ queryKey: ['movies', 'favorites'] });
+      queryClient.invalidateQueries({ queryKey: ['movies', 'search'] });
     },
-    // BUG: No error handling
+    onError: (error) => {
+      console.error('Failed to remove from favorites:', error);
+    },
   });
 };
-
