@@ -126,15 +126,20 @@ const Favorites = () => {
         ) : (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {favorites?.data.favorites.map((movie: Movie) => (
-                <MovieCard
-                  key={movie.imdbID}
-                  movie={movie}
-                  isFavorite={true}
-                  onToggleFavorite={handleToggleFavorite}
-                  disabled={isMutating}
-                />
-              ))}
+              {favorites?.data.favorites
+                .filter((movie, index, self) => 
+                  // Remove duplicates based on imdbID
+                  index === self.findIndex((m) => m.imdbID === movie.imdbID)
+                )
+                .map((movie: Movie, index: number) => (
+                  <MovieCard
+                    key={`${movie.imdbID}-${index}`}
+                    movie={movie}
+                    isFavorite={true}
+                    onToggleFavorite={handleToggleFavorite}
+                    disabled={isMutating}
+                  />
+                ))}
             </div>
 
             {favorites?.data.totalPages && favorites.data.totalPages > 1 && (

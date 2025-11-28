@@ -139,15 +139,20 @@ export default function SearchPage() {
         {!isLoading && !error && searchResults?.data.movies && searchResults.data.movies.length > 0 && (
           <>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-6">
-              {searchResults.data.movies.map((movie) => (
-                <MovieCard
-                  key={movie.imdbID}
-                  movie={movie}
-                  isFavorite={movie.isFavorite ?? false}
-                  onToggleFavorite={handleToggleFavorite}
-                  disabled={isMutating}
-                />
-              ))}
+              {searchResults.data.movies
+                .filter((movie, index, self) => 
+                  // Remove duplicates based on imdbID
+                  index === self.findIndex((m) => m.imdbID === movie.imdbID)
+                )
+                .map((movie, index) => (
+                  <MovieCard
+                    key={`${movie.imdbID}-${index}`}
+                    movie={movie}
+                    isFavorite={movie.isFavorite ?? false}
+                    onToggleFavorite={handleToggleFavorite}
+                    disabled={isMutating}
+                  />
+                ))}
             </div>
 
             {totalPages > 1 && (
